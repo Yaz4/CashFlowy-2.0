@@ -1,0 +1,132 @@
+
+.root {
+    -fx-font-family: "Segoe UI", sans-serif;
+    -fx-background-color: #1E293B;
+    -fx-spacing: 20;
+}
+
+.menubar {
+
+}
+
+.titolo {
+    -fx-text-fill: #FFFFFF;        /* oppure #F1F5F9 */
+        -fx-font-size: 40px;
+        -fx-font-weight: bold;
+
+}
+
+
+.textfield {
+     -fx-background-color: #334155;
+        -fx-border-color: #475569;
+        -fx-border-radius: 6;
+        -fx-background-radius: 6;
+        -fx-padding: 6 10;
+         -fx-text-fill: #F1F5F9;
+        -fx-font-size: 14px;
+}
+.text-field:focused {
+    -fx-border-color: #3B82F6;
+    -fx-effect: dropshadow(three-pass-box, rgba(59,130,246,0.3), 5, 0, 0, 0);
+}
+
+.datepicker {
+    -fx-background-color: #334155;
+}
+
+
+.chart-pie-label  {
+    -fx-fill: white; /* colore testo */
+    -fx-font-weight: bold; /* opzionale */
+}
+
+.chart-title  {
+    -fx-fill: white; /* colore testo */
+    -fx-font-weight: bold; /* opzionale */
+}
+
+
+.aggiungitransazione {
+-fx-background-color: #10B981;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-background-radius: 8;
+    -fx-cursor: hand;
+}
+
+.aggiungitransazione:hover {
+    -fx-background-color: #059669;
+}
+
+.rimuovitransazione {
+-fx-background-color: #EF4444;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-background-radius: 8;
+    -fx-cursor: hand;
+}
+
+.rimuovitransazione:hover {
+    -fx-background-color: red;
+}
+
+/*tabella transazioni*/
+
+.tabella {
+    -fx-background-color: #1E293B;
+    -fx-text-fill: white;
+    -fx-table-cell-border-color: transparent; /*alternativo #D1D5DB*/
+    -fx-border-color: transparent;
+    -fx-border-radius: 6;
+}
+
+.tabella .placeholder {
+    -fx-text-fill: white;
+}
+
+.tabella .column-header-background {
+    -fx-background-color: #334155;
+
+}
+
+.tabella .table-row-cell:odd {
+     -fx-background-color: #273449;
+
+}
+
+.tabella .table-row-cell:even {
+      -fx-background-color: #1E293B;
+}
+
+.tabella .table-cell {
+    -fx-text-fill: white;
+}
+
+.tabella .column-header-background {
+    -fx-background-color: #1E293B;
+}
+
+.entratetotali {
+    -fx-background-color: #1E293B;
+    -fx-padding: 10;
+    -fx-border-radius: 8;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.5), 8, 0.2, 0, 2);
+    -fx-text-fill: #10B981;
+}
+
+.spesetotali {
+    -fx-background-color: #1E293B;
+    -fx-padding: 10;
+    -fx-border-radius: 8;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.5), 8, 0.2, 0, 2);
+    -fx-text-fill: #EF4444;
+}
+
+.saldocorrente {
+    -fx-background-color: #1E293B;
+    -fx-padding: 10;
+    -fx-border-radius: 8;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.5), 8, 0.2, 0, 2);
+    -fx-text-fill: white;
+}
