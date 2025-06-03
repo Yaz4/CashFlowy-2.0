@@ -49,6 +49,7 @@ public class MainController {
     @FXML private TableColumn<Transaction, String> dataCol;
     @FXML private TableColumn<Transaction, Double> importoCol;
     HikariDataSource hikariDataSource;
+    private FilteredList<Transaction> filteredData;
     private TransactionRepository transactionRepository;
     @FXML private Label saldoLabel;
     @FXML private Label entrateTotaliLabel;
@@ -153,7 +154,7 @@ public class MainController {
 
         pieChartCategorie.setTitle("Analisi Spese");
         StackedBarChartMensile.setTitle("Entrate e Spese Mensili");
-        FilteredList<Transaction> filteredData = new FilteredList<>(transactions, p -> true);
+
 
         searchField.textProperty().addListener((observable, oldValue, newValue) -> {
             filteredData.setPredicate(t -> {
@@ -168,24 +169,43 @@ public class MainController {
             });
         });
 
+        filteredData = new FilteredList<>(transactions, t -> true);
 
+        searchField.textProperty().addListener((observable, oldValue, newValue) -> {
+            aggiornaFiltroGlobale(); // centralizza la logica
+        });
         tabella.setItems(filteredData);
         tabella.setEditable(true);
 
 
 
-       /* Set<String> anniDisponibili= transactions.stream().map(t -> String.valueOf(t.getData().getYear())).collect(Collectors.toCollection(TreeSet::new)); //ordino gli anni
-        List<String> opzioni = new ArrayList<>();
-        opzioni.add("Storico");
-        opzioni.addAll(anniDisponibili);
-        yearSelection.setItems(FXCollections.observableArrayList(opzioni));*/
+
         yearSelection.setValue("Storico");
         yearSelection.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
             if(!Objects.equals(oldVal,newVal)) {
                 aggiornaPagina(); //aggiorna tabella e grafici secondo il nuovo filtro
+                aggiornaFiltroGlobale(); //per poter utilizzare anche il filtro testuale
             }
         });
 
+    }
+
+    private void aggiornaFiltroGlobale() {
+        String searchText = searchField.getText().toLowerCase();
+        String annoSelezionato = yearSelection.getValue();
+
+        filteredData.setPredicate(t -> {
+            boolean matchAnno = annoSelezionato == null || annoSelezionato.equals("Storico")
+                    || String.valueOf(t.getData().getYear()).equals(annoSelezionato);
+
+            boolean matchRicerca = searchText == null || searchText.isEmpty()
+                    || (t.getDescrizione() != null && t.getDescrizione().toLowerCase().contains(searchText))
+                    || (t.getCategoria() != null && t.getCategoria().toLowerCase().contains(searchText))
+                    || (t.getTipo() != null && t.getTipo().toLowerCase().contains(searchText))
+                    || (t.getData() != null && t.getData().toString().contains(searchText));
+
+            return matchAnno && matchRicerca;
+        });
     }
 
     /*-----------------------------------
@@ -433,8 +453,8 @@ public class MainController {
 
     public void aggiornaPagina(){
         System.out.println("Aggiorna pagina");
-        List<Transaction> filtrate = filtraPerAnno();
-        tabella.setItems(FXCollections.observableArrayList(filtrate));
+        /*List<Transaction> filtrate = filtraPerAnno();
+        tabella.setItems(FXCollections.observableArrayList(filtrate));*/
 
         aggiornaSaldo();
         aggiornaEntrateTotali();
