@@ -64,6 +64,7 @@ public class TransactionRepository implements Repository<Transaction, Long> {
         }
     }
 
+
     @Override
     public Iterable<Transaction> findAll() {
         String sql = "SELECT * FROM transactions";

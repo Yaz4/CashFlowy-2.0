@@ -1,13 +1,12 @@
 package CashFlowy;
 
-import CashFlowy.controller.MainController;
+import CashFlowy.controller.LoginController;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
-import javafx.scene.image.Image;
 import javafx.stage.Stage;
 
 import java.io.IOException;
@@ -23,20 +22,18 @@ public class Main extends Application {
     }
 
     @Override
-    public void start(Stage stage) throws IOException {
+    public void start(Stage primaryStage) throws IOException {
         HikariDataSource hikariDataSource = initDataSource(JDBC_Driver, JDBC_URL);
-
-        FXMLLoader loader = new FXMLLoader(getClass().getResource("/view/main-view.fxml"));
+        FXMLLoader loader = new FXMLLoader(getClass().getResource("/view/login.fxml"));
         Parent root = loader.load();
-        MainController controller = loader.getController();
-        controller.initDataSource(hikariDataSource);
+        primaryStage.setTitle("Login - CashFlowy");
+        primaryStage.setScene(new Scene(root));
+        primaryStage.show();
 
-        Scene scene = new Scene(root);
-        scene.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
-        stage.setTitle("CashFlowy");
-        stage.setScene(scene);
-        stage.show();
-        stage.getIcons().add(new Image(getClass().getResourceAsStream("/images/CashFlowy Logo.png")));
+        LoginController loginController = loader.getController();
+        loginController.setDataSource(hikariDataSource);
+        root.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
+
     }
     private HikariDataSource initDataSource(String JDBC_Driver, String JDBC_URL) {
         HikariConfig config = new HikariConfig();

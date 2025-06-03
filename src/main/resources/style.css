@@ -5,8 +5,27 @@
     -fx-spacing: 20;
 }
 
-.menubar {
+.cboxox {
+    -fx-background-color: #f5f5f5;
+    -fx-border-color: #cccccc;
+    -fx-border-radius: 4px;
+    -fx-padding: 3px 8px;
+}
 
+/* For the dropdown arrow button */
+.cbox .arrow-button {
+    -fx-background-color: #e0e0e0;
+}
+
+/* For the dropdown list */
+.cbox .context-menu {
+    -fx-background-color: white;
+    -fx-border-color: #ddd;
+}
+
+/* For items in the dropdown */
+.cbox .menu-item:focused {
+    -fx-background-color: #2196F3;
 }
 
 .titolo {

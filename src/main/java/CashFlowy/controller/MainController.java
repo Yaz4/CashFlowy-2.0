@@ -4,13 +4,14 @@ package CashFlowy.controller;
 import CashFlowy.persistence.model.Transaction;
 import CashFlowy.persistence.repository.TransactionRepository;
 import com.zaxxer.hikari.HikariDataSource;
+import javafx.beans.property.SimpleDoubleProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.collections.transformation.FilteredList;
 import javafx.event.ActionEvent;
-import javafx.event.EventHandler;
 import javafx.fxml.FXML;
-import javafx.scene.chart.PieChart;
+import javafx.scene.chart.*;
 import javafx.scene.control.*;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
@@ -27,17 +28,19 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.time.LocalDate;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 public class MainController {
 
+
     @FXML private TextField descrizioneField;
     @FXML private TextField importoField;
     @FXML private DatePicker dataField;
+    @FXML private TextField searchField;
     @FXML private ChoiceBox<String> tipoChoiceBox;
+    @FXML private ChoiceBox<String> yearSelection;
     @FXML private ChoiceBox<String> categoriaChoiceBox;
     @FXML private TableView<Transaction> tabella;
     @FXML private TableColumn<Transaction, String> categoriaCol;
@@ -51,6 +54,8 @@ public class MainController {
     @FXML private Label entrateTotaliLabel;
     @FXML private Label usciteTotaliLabel;
     @FXML private PieChart pieChartCategorie;
+    @FXML private StackedBarChart StackedBarChartMensile;
+    @FXML private Label welcomeBack;
 
 
     private final ObservableList<Transaction> transactions = FXCollections.observableArrayList();
@@ -60,17 +65,20 @@ public class MainController {
         this.hikariDataSource = hikariDataSource;
         this.transactionRepository = new TransactionRepository(hikariDataSource);
         Iterable<Transaction> savedTransactions = transactionRepository.findAll();
-        transactions.addAll(StreamSupport.stream(savedTransactions.spliterator(), false).collect(Collectors.toList()));
-        aggiornaSaldo();
-        aggiornaEntrateTotali();
-        aggiornaUsciteTotali();
-        aggiornaGraficoCategorie();
+        transactions.addAll(StreamSupport.stream(savedTransactions.spliterator(), false).toList());
+        aggiornaPagina();
     }
 
     @FXML
-    public void initialize() throws SQLException {
+    public void initialize(){
+
+        welcomeBack.setText("Bentornato\n" + LoginController.stringUsername());
 
 
+
+
+
+        /*COLONNA TIPO*/
         tipoChoiceBox.setItems(FXCollections.observableArrayList("Entrata", "Uscita"));
         tipoChoiceBox.setValue("Entrata");
         tipoChoiceBox.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
@@ -81,61 +89,103 @@ public class MainController {
                 categoriaChoiceBox.getSelectionModel().clearSelection();
             }
         });
-        categoriaChoiceBox.setDisable(!tipoChoiceBox.getValue().equals("Uscita")); //la disabilito inizialmente
-        categoriaChoiceBox.setItems(FXCollections.observableArrayList("Bollette", "Abbonamenti", "Carburante", "Salute", "Svago"));
-        categoriaChoiceBox.setValue("Categoria");
+
+        /*DATA INIZIALE*/
         dataField.setValue(LocalDate.now());
 
+        /*COLONNA CATEGORIA*/
+        categoriaChoiceBox.setDisable(!tipoChoiceBox.getValue().equals("Uscita")); //la disabilito inizialmente
+        categoriaChoiceBox.setItems(FXCollections.observableArrayList("Bollette", "Abbonamenti", "Carburante", "Salute", "Svago", "Spese Alimentari/casa"));
+        categoriaChoiceBox.setValue("Categoria");
 
 
-
-
-
-        categoriaCol.setCellValueFactory(cell -> new javafx.beans.property.SimpleStringProperty(cell.getValue().getCategoria()));
+        categoriaCol.setCellValueFactory(cell -> new SimpleStringProperty(cell.getValue().getCategoria()));
         categoriaCol.setOnEditCommit(event -> {
             Transaction selectedTransaction = event.getRowValue();
-            selectedTransaction.setTipo(event.getNewValue());;
+            selectedTransaction.setCategoria(event.getNewValue());
             transactionRepository.save(selectedTransaction);
         });
 
-        descrizioneCol.setCellValueFactory(cell -> new javafx.beans.property.SimpleStringProperty(cell.getValue().getDescrizione()));
+        /*COLONNA DESCRIZIONE*/
+        descrizioneCol.setCellValueFactory(cell -> new SimpleStringProperty(cell.getValue().getDescrizione()));
         descrizioneCol.setCellFactory(TextFieldTableCell.forTableColumn());
         descrizioneCol.setOnEditCommit(event -> {
             Transaction selectedTransaction = event.getRowValue();
-            selectedTransaction.setDescrizione(event.getNewValue());;
+            selectedTransaction.setDescrizione(event.getNewValue());
             transactionRepository.save(selectedTransaction);
         });
 
-        tipoCol.setCellValueFactory(cell -> new javafx.beans.property.SimpleStringProperty(cell.getValue().getTipo()));
+        /*COLONNA TIPO*/
+        tipoCol.setCellValueFactory(cell -> new SimpleStringProperty(cell.getValue().getTipo()));
         tipoCol.setOnEditCommit(event -> {
             Transaction selectedTransaction = event.getRowValue();
-            selectedTransaction.setTipo(event.getNewValue());;
+            selectedTransaction.setTipo(event.getNewValue());
             transactionRepository.save(selectedTransaction);
         });
 
-
+        /*COLONNA DATA*/
         dataCol.setCellValueFactory(cell -> new SimpleStringProperty(cell.getValue().getData().toString()));
         dataCol.setCellFactory(TextFieldTableCell.forTableColumn());
         dataCol.setOnEditCommit(event -> {
-            Transaction selectedTransaction = event.getRowValue();
-            selectedTransaction.setDescrizione(event.getNewValue());;
-            transactionRepository.save(selectedTransaction);
+            Transaction transazione = event.getRowValue();
+            try { //nell'aggiornarla controllo che il formato sia giusto
+                LocalDate nuovaData = LocalDate.parse(event.getNewValue());
+                transazione.setData(nuovaData);
+                transactionRepository.save(transazione);
+            } catch (Exception e) { //per prevenire una parsing exception
+                mostraErrore("Formato data non valido. Usa AAAA-MM-GG.");
+            }
         });
 
-        importoCol.setCellValueFactory(cell -> new javafx.beans.property.SimpleDoubleProperty(cell.getValue().getImporto()).asObject());
+        /*COLONNA IMPORTO*/
+        importoCol.setCellValueFactory(cell -> new SimpleDoubleProperty(cell.getValue().getImporto()).asObject());
         importoCol.setOnEditCommit(event -> {
-            Transaction selectedTransaction = event.getRowValue();
-            selectedTransaction.setDescrizione(event.getNewValue().toString());;
-            transactionRepository.save(selectedTransaction);
+
+            try {
+                Transaction selectedTransaction = event.getRowValue();
+                double newValue = Double.parseDouble(event.getNewValue().toString());
+                selectedTransaction.setImporto(newValue);
+                transactionRepository.save(selectedTransaction);
+            } catch (NumberFormatException e) {
+                mostraErrore("Importo non valido. Inserire un valore numerico");
+            }
         });
 
         pieChartCategorie.setTitle("Analisi Spese");
-        tabella.setItems(transactions);
+        StackedBarChartMensile.setTitle("Entrate e Spese Mensili");
+        FilteredList<Transaction> filteredData = new FilteredList<>(transactions, p -> true);
+
+        searchField.textProperty().addListener((observable, oldValue, newValue) -> {
+            filteredData.setPredicate(t -> {
+                if (newValue == null || newValue.isEmpty()) return true;
+
+                String lowerCaseFilter = newValue.toLowerCase();
+
+                return (t.getDescrizione() != null && t.getDescrizione().toLowerCase().contains(lowerCaseFilter)) ||
+                        (t.getCategoria() != null && t.getCategoria().toLowerCase().contains(lowerCaseFilter)) ||
+                        (t.getTipo() != null && t.getTipo().toLowerCase().contains(lowerCaseFilter)) ||
+                        (t.getData() != null && t.getData().toString().contains(lowerCaseFilter));
+            });
+        });
+
+
+        tabella.setItems(filteredData);
         tabella.setEditable(true);
-        aggiornaSaldo();
-        aggiornaUsciteTotali();
-        aggiornaEntrateTotali();
-        aggiornaGraficoCategorie();
+
+
+
+       /* Set<String> anniDisponibili= transactions.stream().map(t -> String.valueOf(t.getData().getYear())).collect(Collectors.toCollection(TreeSet::new)); //ordino gli anni
+        List<String> opzioni = new ArrayList<>();
+        opzioni.add("Storico");
+        opzioni.addAll(anniDisponibili);
+        yearSelection.setItems(FXCollections.observableArrayList(opzioni));*/
+        yearSelection.setValue("Storico");
+        yearSelection.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
+            if(!Objects.equals(oldVal,newVal)) {
+                aggiornaPagina(); //aggiorna tabella e grafici secondo il nuovo filtro
+            }
+        });
+
     }
 
     /*-----------------------------------
@@ -156,7 +206,11 @@ public class MainController {
             return;
         }
 
-        if (tipo.equals("Uscita")) importo = -Math.abs(importo);
+        if (tipo.equals("Uscita")) {importo = -Math.abs(importo);}
+        if (tipo.equals("Uscita") && (categoria == null || categoria.equals("Categoria"))) {
+            mostraErrore("Scegli una categoria valida per l'uscita.");
+            return;
+        } else if(tipo.equals("Entrata")) {categoria = null;}//categoria non può rimanere impostato a "Categoria"
         Transaction transazione = new Transaction(categoria,descrizione, importo, data, tipo);
 
         try {
@@ -169,10 +223,7 @@ public class MainController {
 
             descrizioneField.clear();
             importoField.clear();
-            aggiornaSaldo();
-            aggiornaEntrateTotali();
-            aggiornaUsciteTotali();
-            aggiornaGraficoCategorie();
+            aggiornaPagina();
         } catch (Exception e) {
             mostraErrore("Errore durante il salvataggio: " + e.getMessage());
         }
@@ -180,7 +231,7 @@ public class MainController {
 
     }
 
-    public void rimuoviTransazione(ActionEvent event) {
+    public void rimuoviTransazione() {
         Transaction selezionata = tabella.getSelectionModel().getSelectedItem();
 
         if (selezionata == null) {
@@ -191,36 +242,65 @@ public class MainController {
         try {
             transactionRepository.deleteById(selezionata.getId());
             transactions.remove(selezionata);
-            aggiornaSaldo();
-            aggiornaEntrateTotali();
-            aggiornaUsciteTotali();
-            aggiornaGraficoCategorie();
+            aggiornaPagina();
         } catch (Exception e) {
             mostraErrore("Errore nella rimozione della transazione: " + e.getMessage());
         }
     }
 
+    private List<Transaction> filtraPerAnno() {
+        String selezione = yearSelection.getValue();
+        if (selezione == null || selezione.equals("Storico")) {
+            return new ArrayList<>(transactions);
+        }
 
+        int anno = Integer.parseInt(selezione);
+        return transactions.stream().filter(t -> t.getData().getYear() == anno).toList();
+    }
 
     /*-------------------------------------------------*/
     /*METODI PER AGGIORNARE I VALORI*/
 
     private void aggiornaUsciteTotali() {
-        double usciteTotali = transactions.stream().filter(Transaction -> Transaction.getTipo().equals("Uscita")).mapToDouble(Transaction::getImporto).sum();
+        double usciteTotali = filtraPerAnno().stream().filter(Transaction -> Transaction.getTipo().equals("Uscita")).mapToDouble(Transaction::getImporto).sum();
         usciteTotaliLabel.setText(String.format("Uscite Totali: € %.2f", usciteTotali));
     }
 
     private void aggiornaEntrateTotali() {
-        double entrateTotali = transactions.stream().filter(Transaction -> Transaction.getTipo().equals("Entrata")).mapToDouble(Transaction::getImporto).sum();
+        double entrateTotali = filtraPerAnno().stream().filter(Transaction -> Transaction.getTipo().equals("Entrata")).mapToDouble(Transaction::getImporto).sum();
         entrateTotaliLabel.setText(String.format("Entrate Totali: € %.2f", entrateTotali));
     }
 
 
     private void aggiornaSaldo() {
-        double saldo = transactions.stream().mapToDouble(Transaction::getImporto).sum();
+        double saldo = filtraPerAnno().stream().mapToDouble(Transaction::getImporto).sum();
         saldoLabel.setText(String.format("Saldo: € %.2f", saldo));
     }
+    private void aggiornaOpzioniAnni() {
+        String valoreCorrente = yearSelection.getValue();
 
+        Set<String> anniDisponibili = transactions.stream()
+                .map(t -> String.valueOf(t.getData().getYear()))
+                .collect(Collectors.toCollection(TreeSet::new));
+
+        List<String> nuoveOpzioni = new ArrayList<>();
+        nuoveOpzioni.add("Storico");
+        nuoveOpzioni.addAll(anniDisponibili);
+
+        // Aggiorna la lista delle opzioni solo se è cambiata
+        if (!yearSelection.getItems().equals(nuoveOpzioni)) {
+            yearSelection.setItems(FXCollections.observableArrayList(nuoveOpzioni));
+        }
+
+        // Imposta il valore solo se è necessario
+        if (!nuoveOpzioni.contains(valoreCorrente)) {
+            yearSelection.setValue("Storico");
+        } else if (!valoreCorrente.equals(yearSelection.getValue())) {
+            yearSelection.setValue(valoreCorrente);
+        }
+    }
+    
+    
     /* Metodi per segnalare errori o informazioni*/
     private void mostraErrore(String messaggio) {
         Alert alert = new Alert(Alert.AlertType.ERROR);
@@ -239,9 +319,11 @@ public class MainController {
         alert.showAndWait();
     }
 
+
+
     /*metodo per esportare file excel con le transazioni -> dipendenza Apache POI*/
 
-    public void esportaExcel(ActionEvent event) {
+    public void esportaExcel() {
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Salva come Excel");
         fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Excel files (*.xlsx)", "*.xlsx"));
@@ -278,10 +360,17 @@ public class MainController {
         }
     }
 
+
+
+
+    /*METODI PER AGGIORNARE I GRAFICI*/
+
+
+
     //Metodo per aggiornare il grafico a torta delle spese suddivise per categoria
     private void aggiornaGraficoCategorie() {
         // Raggruppa le spese per categoria (considerando solo "Uscita")
-        Map<String, Double> spesePerCategoria = transactions.stream()
+        Map<String, Double> spesePerCategoria = filtraPerAnno().stream()
                 .filter(t -> "Uscita".equals(t.getTipo()))
                 .collect(Collectors.groupingBy(Transaction::getCategoria, Collectors.summingDouble(Transaction::getImporto)));
 
@@ -294,6 +383,65 @@ public class MainController {
         }
 
         pieChartCategorie.setData(pieChartData);
+    }
+
+    //Grafico a barre sovrapposte per entrate/uscite Mensili
+    private void aggiornaGraficoMensile() {
+        StackedBarChartMensile.getData().clear(); // Pulisco eventuali dati precedenti
+
+
+        String[] mesi = {
+                "Gen", "Feb", "Mar", "Apr", "Mag", "Giu",
+                "Lug", "Ago", "Set", "Ott", "Nov", "Dic"
+        };
+
+        Map<Integer, Double> entratePerMese = new java.util.HashMap<>();
+        Map<Integer, Double> uscitePerMese = new java.util.HashMap<>();
+
+        // Inizializzo a zero
+        for (int i = 1; i <= 12; i++) {
+            entratePerMese.put(i, 0.0);
+            uscitePerMese.put(i, 0.0);
+        }
+
+        for (Transaction t : filtraPerAnno()) {
+            int mese = t.getData().getMonthValue();
+            double importo = t.getImporto();
+            if (t.getTipo().equals("Entrata")) {
+                entratePerMese.put(mese, entratePerMese.get(mese) + importo);
+            } else if (t.getTipo().equals("Uscita")) {
+                uscitePerMese.put(mese, uscitePerMese.get(mese) + (-importo));
+            }
+        }
+
+        XYChart.Series<String, Number> serieEntrate = new XYChart.Series<>();
+        serieEntrate.setName("Entrate");
+
+        XYChart.Series<String, Number> serieUscite = new XYChart.Series<>();
+        serieUscite.setName("Uscite");
+
+        for (int i = 1; i <= 12; i++) {
+            String mese = mesi[i - 1];
+            serieEntrate.getData().add(new XYChart.Data<>(mese, entratePerMese.get(i)));
+            serieUscite.getData().add(new XYChart.Data<>(mese, uscitePerMese.get(i)));
+        }
+
+        StackedBarChartMensile.getData().addAll(serieEntrate, serieUscite);
+
+    }
+
+
+    public void aggiornaPagina(){
+        System.out.println("Aggiorna pagina");
+        List<Transaction> filtrate = filtraPerAnno();
+        tabella.setItems(FXCollections.observableArrayList(filtrate));
+
+        aggiornaSaldo();
+        aggiornaEntrateTotali();
+        aggiornaUsciteTotali();
+        aggiornaGraficoCategorie();
+        aggiornaGraficoMensile();
+        aggiornaOpzioniAnni();
     }
 
 
