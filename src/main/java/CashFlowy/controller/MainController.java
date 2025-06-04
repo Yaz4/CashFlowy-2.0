@@ -51,6 +51,7 @@ public class MainController {
     HikariDataSource hikariDataSource;
     private FilteredList<Transaction> filteredData;
     private TransactionRepository transactionRepository;
+    @FXML private Label patrimonioLabel;
     @FXML private Label saldoLabel;
     @FXML private Label entrateTotaliLabel;
     @FXML private Label usciteTotaliLabel;
@@ -67,6 +68,7 @@ public class MainController {
         this.transactionRepository = new TransactionRepository(hikariDataSource);
         Iterable<Transaction> savedTransactions = transactionRepository.findAll();
         transactions.addAll(StreamSupport.stream(savedTransactions.spliterator(), false).toList());
+        aggiornaPatrimonio();
         aggiornaPagina();
     }
 
@@ -96,7 +98,7 @@ public class MainController {
 
         /*COLONNA CATEGORIA*/
         categoriaChoiceBox.setDisable(!tipoChoiceBox.getValue().equals("Uscita")); //la disabilito inizialmente
-        categoriaChoiceBox.setItems(FXCollections.observableArrayList("Bollette", "Abbonamenti", "Carburante", "Salute", "Svago", "Spese Alimentari/casa"));
+        categoriaChoiceBox.setItems(FXCollections.observableArrayList("Bollette/Imposte", "Abbonamenti", "Carburante", "Salute", "Svago", "Regalo", "Spese Alimentari/casa", "INVESTIMENTI"));
         categoriaChoiceBox.setValue("Categoria");
 
 
@@ -243,6 +245,7 @@ public class MainController {
 
             descrizioneField.clear();
             importoField.clear();
+            aggiornaPatrimonio();
             aggiornaPagina();
         } catch (Exception e) {
             mostraErrore("Errore durante il salvataggio: " + e.getMessage());
@@ -262,6 +265,7 @@ public class MainController {
         try {
             transactionRepository.deleteById(selezionata.getId());
             transactions.remove(selezionata);
+            aggiornaPatrimonio();
             aggiornaPagina();
         } catch (Exception e) {
             mostraErrore("Errore nella rimozione della transazione: " + e.getMessage());
@@ -290,6 +294,11 @@ public class MainController {
         double entrateTotali = filtraPerAnno().stream().filter(Transaction -> Transaction.getTipo().equals("Entrata")).mapToDouble(Transaction::getImporto).sum();
         entrateTotaliLabel.setText(String.format("Entrate Totali: € %.2f", entrateTotali));
     }
+    private void aggiornaPatrimonio() {
+        double patrimonio = transactions.stream().mapToDouble(Transaction::getImporto).sum() - transactions.stream().filter(Transaction -> Transaction.getTipo().equals("Uscita") && Transaction.getCategoria().equals("INVESTIMENTI")).mapToDouble(Transaction::getImporto).sum();;
+        patrimonioLabel.setText(String.format("Patrimonio: € %.2f", patrimonio));
+    }
+
 
 
     private void aggiornaSaldo() {
@@ -403,6 +412,14 @@ public class MainController {
         }
 
         pieChartCategorie.setData(pieChartData);
+
+        double total = pieChartCategorie.getData().stream().mapToDouble(PieChart.Data::getPieValue).sum();
+
+        // Set labels with percentages
+        for (PieChart.Data data : pieChartCategorie.getData()) {
+            double percentage = (data.getPieValue() / total) * 100;
+            data.setName(String.format("%s (%.1f%%)", data.getName().split(" ")[0], percentage));
+        }
     }
 
     //Grafico a barre sovrapposte per entrate/uscite Mensili
@@ -455,6 +472,7 @@ public class MainController {
         System.out.println("Aggiorna pagina");
         /*List<Transaction> filtrate = filtraPerAnno();
         tabella.setItems(FXCollections.observableArrayList(filtrate));*/
+
 
         aggiornaSaldo();
         aggiornaEntrateTotali();
