@@ -56,7 +56,7 @@ public class MainController {
     @FXML private Label entrateTotaliLabel;
     @FXML private Label usciteTotaliLabel;
     @FXML private PieChart pieChartCategorie;
-    @FXML private StackedBarChart StackedBarChartMensile;
+    @FXML private BarChart StackedBarChartMensile;
     @FXML private Label welcomeBack;
 
 
@@ -75,7 +75,7 @@ public class MainController {
     @FXML
     public void initialize(){
 
-        welcomeBack.setText("Bentornato\n" + LoginController.stringUsername());
+        welcomeBack.setText("Bentornato\n" + LoginController.getUsername());
 
 
 
@@ -174,7 +174,7 @@ public class MainController {
         filteredData = new FilteredList<>(transactions, t -> true);
 
         searchField.textProperty().addListener((observable, oldValue, newValue) -> {
-            aggiornaFiltroGlobale(); // centralizza la logica
+            aggiornaFiltroGlobale(); // deve rispettare anche il filtro globale
         });
         tabella.setItems(filteredData);
         tabella.setEditable(true);
@@ -206,7 +206,7 @@ public class MainController {
                     || (t.getTipo() != null && t.getTipo().toLowerCase().contains(searchText))
                     || (t.getData() != null && t.getData().toString().contains(searchText));
 
-            return matchAnno && matchRicerca;
+            return matchAnno && matchRicerca; //devo assicurarmi che sia l'anno, sia il testo cercato vengano soddisfatti
         });
     }
 
@@ -238,7 +238,7 @@ public class MainController {
         try {
 
             transactionRepository.save(transazione);
-            System.out.println("Transazione salvata con ID: " + transazione.getId());
+            System.out.println("Transazione salvata con ID: " + transazione.getId()); //stampa di debug
 
 
             transactions.add(transazione);
@@ -296,7 +296,7 @@ public class MainController {
     }
     private void aggiornaPatrimonio() {
         double patrimonio = transactions.stream().mapToDouble(Transaction::getImporto).sum() - transactions.stream().filter(Transaction -> Transaction.getTipo().equals("Uscita") && Transaction.getCategoria().equals("INVESTIMENTI")).mapToDouble(Transaction::getImporto).sum();;
-        patrimonioLabel.setText(String.format("Patrimonio: € %.2f", patrimonio));
+        patrimonioLabel.setText(String.format("€ %.2f", patrimonio));
     }
 
 
@@ -350,7 +350,7 @@ public class MainController {
 
 
 
-    /*metodo per esportare file excel con le transazioni -> dipendenza Apache POI*/
+    /*metodo per esportare file excel con le transazioni -> dipendency Apache POI*/
 
     public void esportaExcel() {
         FileChooser fileChooser = new FileChooser();
@@ -427,13 +427,10 @@ public class MainController {
         StackedBarChartMensile.getData().clear(); // Pulisco eventuali dati precedenti
 
 
-        String[] mesi = {
-                "Gen", "Feb", "Mar", "Apr", "Mag", "Giu",
-                "Lug", "Ago", "Set", "Ott", "Nov", "Dic"
-        };
+        String[] mesi = {"Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"};
 
-        Map<Integer, Double> entratePerMese = new java.util.HashMap<>();
-        Map<Integer, Double> uscitePerMese = new java.util.HashMap<>();
+        Map<Integer, Double> entratePerMese = new HashMap<>();
+        Map<Integer, Double> uscitePerMese = new HashMap<>();
 
         // Inizializzo a zero
         for (int i = 1; i <= 12; i++) {
@@ -469,10 +466,7 @@ public class MainController {
 
 
     public void aggiornaPagina(){
-        System.out.println("Aggiorna pagina");
-        /*List<Transaction> filtrate = filtraPerAnno();
-        tabella.setItems(FXCollections.observableArrayList(filtrate));*/
-
+        System.out.println("Aggiorna pagina"); //stampa di debug
 
         aggiornaSaldo();
         aggiornaEntrateTotali();
