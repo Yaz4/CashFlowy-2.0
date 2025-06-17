@@ -118,7 +118,7 @@
                      </HBox>
                      <AnchorPane VBox.vgrow="ALWAYS">
                         <children>
-                           <BarChart fx:id="StackedBarChartMensile" legendSide="LEFT" prefHeight="366.4" prefWidth="1680.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                           <BarChart fx:id="BarChartMensile" legendSide="LEFT" prefHeight="366.4" prefWidth="1680.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                              <xAxis>
                                <CategoryAxis side="BOTTOM" />
                              </xAxis>

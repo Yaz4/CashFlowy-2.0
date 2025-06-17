@@ -40,6 +40,7 @@ public class LoginController {
                 Stage stage = new Stage();
                 stage.setTitle("CashFlowy - Dashboard");
                 stage.setScene(new Scene(root));
+                stage.setFullScreen(true);
                 stage.show();
                 stage.getIcons().add(new Image(getClass().getResourceAsStream("/images/CashFlowy Logo.png")));
 

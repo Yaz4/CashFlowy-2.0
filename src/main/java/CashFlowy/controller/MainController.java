@@ -3,6 +3,8 @@ package CashFlowy.controller;
 
 import CashFlowy.persistence.model.Transaction;
 import CashFlowy.persistence.repository.TransactionRepository;
+import CashFlowy.service.ChartService;
+import CashFlowy.service.TransactionService;
 import com.zaxxer.hikari.HikariDataSource;
 import javafx.beans.property.SimpleDoubleProperty;
 import javafx.beans.property.SimpleStringProperty;
@@ -56,11 +58,14 @@ public class MainController {
     @FXML private Label entrateTotaliLabel;
     @FXML private Label usciteTotaliLabel;
     @FXML private PieChart pieChartCategorie;
-    @FXML private BarChart StackedBarChartMensile;
+    @FXML private BarChart BarChartMensile;
     @FXML private Label welcomeBack;
 
 
     private final ObservableList<Transaction> transactions = FXCollections.observableArrayList();
+    public ChartService chartService = new ChartService();
+    public TransactionService transactionService;
+
 
 
     public void initDataSource(HikariDataSource hikariDataSource) {
@@ -68,7 +73,8 @@ public class MainController {
         this.transactionRepository = new TransactionRepository(hikariDataSource);
         Iterable<Transaction> savedTransactions = transactionRepository.findAll();
         transactions.addAll(StreamSupport.stream(savedTransactions.spliterator(), false).toList());
-        aggiornaPatrimonio();
+        transactionService = new TransactionService(transactions);
+        patrimonioLabel.setText(String.format("€ %.2f", transactionService.aggiornaPatrimonio()));
         aggiornaPagina();
     }
 
@@ -96,14 +102,17 @@ public class MainController {
         /*DATA INIZIALE*/
         dataField.setValue(LocalDate.now());
 
-        /*COLONNA CATEGORIA*/
+
         categoriaChoiceBox.setDisable(!tipoChoiceBox.getValue().equals("Uscita")); //la disabilito inizialmente
         categoriaChoiceBox.setItems(FXCollections.observableArrayList("Bollette/Imposte", "Abbonamenti", "Carburante", "Salute", "Svago", "Regalo", "Spese Alimentari/casa", "INVESTIMENTI"));
         categoriaChoiceBox.setValue("Categoria");
 
 
+
+
+        /*COLONNA CATEGORIA*/
         categoriaCol.setCellValueFactory(cell -> new SimpleStringProperty(cell.getValue().getCategoria()));
-        categoriaCol.setOnEditCommit(event -> {
+        categoriaCol.setOnEditCommit(event -> { //possibilità di modificare i valori direttamente nella tabella
             Transaction selectedTransaction = event.getRowValue();
             selectedTransaction.setCategoria(event.getNewValue());
             transactionRepository.save(selectedTransaction);
@@ -154,27 +163,14 @@ public class MainController {
             }
         });
 
+
         pieChartCategorie.setTitle("Analisi Spese");
-        StackedBarChartMensile.setTitle("Entrate e Spese Mensili");
+        BarChartMensile.setTitle("Entrate e Spese Mensili");
 
 
+        filteredData = new FilteredList<>(transactions, t -> true); //predicato presente in aggiornaFiltroGlobale()
         searchField.textProperty().addListener((observable, oldValue, newValue) -> {
-            filteredData.setPredicate(t -> {
-                if (newValue == null || newValue.isEmpty()) return true;
-
-                String lowerCaseFilter = newValue.toLowerCase();
-
-                return (t.getDescrizione() != null && t.getDescrizione().toLowerCase().contains(lowerCaseFilter)) ||
-                        (t.getCategoria() != null && t.getCategoria().toLowerCase().contains(lowerCaseFilter)) ||
-                        (t.getTipo() != null && t.getTipo().toLowerCase().contains(lowerCaseFilter)) ||
-                        (t.getData() != null && t.getData().toString().contains(lowerCaseFilter));
-            });
-        });
-
-        filteredData = new FilteredList<>(transactions, t -> true);
-
-        searchField.textProperty().addListener((observable, oldValue, newValue) -> {
-            aggiornaFiltroGlobale(); // deve rispettare anche il filtro globale
+            aggiornaFiltroGlobale(); // deve rispettare il filtro globale
         });
         tabella.setItems(filteredData);
         tabella.setEditable(true);
@@ -189,6 +185,7 @@ public class MainController {
                 aggiornaFiltroGlobale(); //per poter utilizzare anche il filtro testuale
             }
         });
+
 
     }
 
@@ -211,7 +208,7 @@ public class MainController {
     }
 
     /*-----------------------------------
-    * METODI PER AGIRE SULLE transactions*/
+     * METODI PER AGIRE SULLE transactions*/
 
     @FXML
     public void aggiungiTransazione() {
@@ -228,10 +225,12 @@ public class MainController {
             return;
         }
 
-        if (tipo.equals("Uscita")) {importo = -Math.abs(importo);}
-        if (tipo.equals("Uscita") && (categoria == null || categoria.equals("Categoria"))) {
-            mostraErrore("Scegli una categoria valida per l'uscita.");
-            return;
+        if (tipo.equals("Uscita")) {
+            if(categoria == null || categoria.equals("Categoria")){
+                mostraErrore("Scegli una categoria valida per l'uscita.");
+                return;
+            }
+            importo = -Math.abs(importo);
         } else if(tipo.equals("Entrata")) {categoria = null;}//categoria non può rimanere impostato a "Categoria"
         Transaction transazione = new Transaction(categoria,descrizione, importo, data, tipo);
 
@@ -245,7 +244,7 @@ public class MainController {
 
             descrizioneField.clear();
             importoField.clear();
-            aggiornaPatrimonio();
+            patrimonioLabel.setText(String.format("€ %.2f", transactionService.aggiornaPatrimonio()));
             aggiornaPagina();
         } catch (Exception e) {
             mostraErrore("Errore durante il salvataggio: " + e.getMessage());
@@ -265,46 +264,13 @@ public class MainController {
         try {
             transactionRepository.deleteById(selezionata.getId());
             transactions.remove(selezionata);
-            aggiornaPatrimonio();
+            patrimonioLabel.setText(String.format("€ %.2f", transactionService.aggiornaPatrimonio()));
             aggiornaPagina();
         } catch (Exception e) {
             mostraErrore("Errore nella rimozione della transazione: " + e.getMessage());
         }
     }
 
-    private List<Transaction> filtraPerAnno() {
-        String selezione = yearSelection.getValue();
-        if (selezione == null || selezione.equals("Storico")) {
-            return new ArrayList<>(transactions);
-        }
-
-        int anno = Integer.parseInt(selezione);
-        return transactions.stream().filter(t -> t.getData().getYear() == anno).toList();
-    }
-
-    /*-------------------------------------------------*/
-    /*METODI PER AGGIORNARE I VALORI*/
-
-    private void aggiornaUsciteTotali() {
-        double usciteTotali = filtraPerAnno().stream().filter(Transaction -> Transaction.getTipo().equals("Uscita")).mapToDouble(Transaction::getImporto).sum();
-        usciteTotaliLabel.setText(String.format("Uscite Totali: € %.2f", usciteTotali));
-    }
-
-    private void aggiornaEntrateTotali() {
-        double entrateTotali = filtraPerAnno().stream().filter(Transaction -> Transaction.getTipo().equals("Entrata")).mapToDouble(Transaction::getImporto).sum();
-        entrateTotaliLabel.setText(String.format("Entrate Totali: € %.2f", entrateTotali));
-    }
-    private void aggiornaPatrimonio() {
-        double patrimonio = transactions.stream().mapToDouble(Transaction::getImporto).sum() - transactions.stream().filter(Transaction -> Transaction.getTipo().equals("Uscita") && Transaction.getCategoria().equals("INVESTIMENTI")).mapToDouble(Transaction::getImporto).sum();;
-        patrimonioLabel.setText(String.format("€ %.2f", patrimonio));
-    }
-
-
-
-    private void aggiornaSaldo() {
-        double saldo = filtraPerAnno().stream().mapToDouble(Transaction::getImporto).sum();
-        saldoLabel.setText(String.format("Saldo: € %.2f", saldo));
-    }
     private void aggiornaOpzioniAnni() {
         String valoreCorrente = yearSelection.getValue();
 
@@ -328,8 +294,8 @@ public class MainController {
             yearSelection.setValue(valoreCorrente);
         }
     }
-    
-    
+
+
     /* Metodi per segnalare errori o informazioni*/
     private void mostraErrore(String messaggio) {
         Alert alert = new Alert(Alert.AlertType.ERROR);
@@ -383,99 +349,23 @@ public class MainController {
                     workbook.write(out);
                 }
 
-                } catch (IOException e) {
+            } catch (IOException e) {
                 e.printStackTrace();
             }
         }
     }
 
-
-
-
-    /*METODI PER AGGIORNARE I GRAFICI*/
-
-
-
-    //Metodo per aggiornare il grafico a torta delle spese suddivise per categoria
-    private void aggiornaGraficoCategorie() {
-        // Raggruppa le spese per categoria (considerando solo "Uscita")
-        Map<String, Double> spesePerCategoria = filtraPerAnno().stream()
-                .filter(t -> "Uscita".equals(t.getTipo()))
-                .collect(Collectors.groupingBy(Transaction::getCategoria, Collectors.summingDouble(Transaction::getImporto)));
-
-        // Il valore è negativo per le uscite, quindi lo rendiamo positivo per il grafico
-        ObservableList<PieChart.Data> pieChartData = FXCollections.observableArrayList();
-
-        for (Map.Entry<String, Double> entry : spesePerCategoria.entrySet()) {
-            double valorePositivo = -entry.getValue(); // inverti il segno
-            pieChartData.add(new PieChart.Data(entry.getKey(), valorePositivo));
-        }
-
-        pieChartCategorie.setData(pieChartData);
-
-        double total = pieChartCategorie.getData().stream().mapToDouble(PieChart.Data::getPieValue).sum();
-
-        // Set labels with percentages
-        for (PieChart.Data data : pieChartCategorie.getData()) {
-            double percentage = (data.getPieValue() / total) * 100;
-            data.setName(String.format("%s (%.1f%%)", data.getName().split(" ")[0], percentage));
-        }
-    }
-
-    //Grafico a barre sovrapposte per entrate/uscite Mensili
-    private void aggiornaGraficoMensile() {
-        StackedBarChartMensile.getData().clear(); // Pulisco eventuali dati precedenti
-
-
-        String[] mesi = {"Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"};
-
-        Map<Integer, Double> entratePerMese = new HashMap<>();
-        Map<Integer, Double> uscitePerMese = new HashMap<>();
-
-        // Inizializzo a zero
-        for (int i = 1; i <= 12; i++) {
-            entratePerMese.put(i, 0.0);
-            uscitePerMese.put(i, 0.0);
-        }
-
-        for (Transaction t : filtraPerAnno()) {
-            int mese = t.getData().getMonthValue();
-            double importo = t.getImporto();
-            if (t.getTipo().equals("Entrata")) {
-                entratePerMese.put(mese, entratePerMese.get(mese) + importo);
-            } else if (t.getTipo().equals("Uscita")) {
-                uscitePerMese.put(mese, uscitePerMese.get(mese) + (-importo));
-            }
-        }
-
-        XYChart.Series<String, Number> serieEntrate = new XYChart.Series<>();
-        serieEntrate.setName("Entrate");
-
-        XYChart.Series<String, Number> serieUscite = new XYChart.Series<>();
-        serieUscite.setName("Uscite");
-
-        for (int i = 1; i <= 12; i++) {
-            String mese = mesi[i - 1];
-            serieEntrate.getData().add(new XYChart.Data<>(mese, entratePerMese.get(i)));
-            serieUscite.getData().add(new XYChart.Data<>(mese, uscitePerMese.get(i)));
-        }
-
-        StackedBarChartMensile.getData().addAll(serieEntrate, serieUscite);
-
-    }
-
-
     public void aggiornaPagina(){
         System.out.println("Aggiorna pagina"); //stampa di debug
 
-        aggiornaSaldo();
-        aggiornaEntrateTotali();
-        aggiornaUsciteTotali();
-        aggiornaGraficoCategorie();
-        aggiornaGraficoMensile();
+
+        entrateTotaliLabel.setText(String.format("Entrate Totali: € %.2f", transactionService.aggiornaTotale("Entrata", yearSelection.getValue())));
+        usciteTotaliLabel.setText(String.format("Uscite Totali: € %.2f", transactionService.aggiornaTotale("Uscita", yearSelection.getValue())));
+        saldoLabel.setText(String.format("Saldo: € %.2f",transactionService.aggiornaTotale("Entrata", yearSelection.getValue()) + transactionService.aggiornaTotale("Uscita", yearSelection.getValue())));
+        chartService.aggiornaGraficoCategorie(pieChartCategorie, transactionService.filtraPerAnno(yearSelection.getValue()), yearSelection.getValue());
+        chartService.aggiornaGraficoMensile(BarChartMensile, transactionService.filtraPerAnno(yearSelection.getValue()), yearSelection.getValue());
         aggiornaOpzioniAnni();
     }
 
 
 }
-
