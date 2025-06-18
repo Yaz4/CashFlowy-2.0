@@ -11,7 +11,6 @@ import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
-import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.chart.*;
 import javafx.scene.control.*;
@@ -28,7 +27,6 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -63,18 +61,21 @@ public class MainController {
 
 
     private final ObservableList<Transaction> transactions = FXCollections.observableArrayList();
-    public ChartService chartService = new ChartService();
-    public TransactionService transactionService;
+    private ChartService chartService;
+    private TransactionService transactionService;
 
 
 
     public void initDataSource(HikariDataSource hikariDataSource) {
         this.hikariDataSource = hikariDataSource;
         this.transactionRepository = new TransactionRepository(hikariDataSource);
+        this.transactionService = new TransactionService();
+        this.chartService=new ChartService();
         Iterable<Transaction> savedTransactions = transactionRepository.findAll();
-        transactions.addAll(StreamSupport.stream(savedTransactions.spliterator(), false).toList());
-        transactionService = new TransactionService(transactions);
-        patrimonioLabel.setText(String.format("€ %.2f", transactionService.aggiornaPatrimonio()));
+        for(Transaction savedTransaction: savedTransactions) {
+            transactions.add(savedTransaction);
+        }
+        patrimonioLabel.setText(String.format("€ %.2f", transactionService.aggiornaPatrimonio(transactions)));
         aggiornaPagina();
     }
 
@@ -171,6 +172,8 @@ public class MainController {
         filteredData = new FilteredList<>(transactions, t -> true); //predicato presente in aggiornaFiltroGlobale()
         searchField.textProperty().addListener((observable, oldValue, newValue) -> {
             aggiornaFiltroGlobale(); // deve rispettare il filtro globale
+            //transactionService.setTransactions(filteredData);
+
         });
         tabella.setItems(filteredData);
         tabella.setEditable(true);
@@ -181,8 +184,8 @@ public class MainController {
         yearSelection.setValue("Storico");
         yearSelection.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
             if(!Objects.equals(oldVal,newVal)) {
-                aggiornaPagina(); //aggiorna tabella e grafici secondo il nuovo filtro
                 aggiornaFiltroGlobale(); //per poter utilizzare anche il filtro testuale
+                aggiornaPagina(); //aggiorna tabella e grafici secondo il nuovo filtro
             }
         });
 
@@ -244,7 +247,7 @@ public class MainController {
 
             descrizioneField.clear();
             importoField.clear();
-            patrimonioLabel.setText(String.format("€ %.2f", transactionService.aggiornaPatrimonio()));
+            patrimonioLabel.setText(String.format("€ %.2f", transactionService.aggiornaPatrimonio(transactions)));
             aggiornaPagina();
         } catch (Exception e) {
             mostraErrore("Errore durante il salvataggio: " + e.getMessage());
@@ -264,7 +267,7 @@ public class MainController {
         try {
             transactionRepository.deleteById(selezionata.getId());
             transactions.remove(selezionata);
-            patrimonioLabel.setText(String.format("€ %.2f", transactionService.aggiornaPatrimonio()));
+            patrimonioLabel.setText(String.format("€ %.2f", transactionService.aggiornaPatrimonio(transactions)));
             aggiornaPagina();
         } catch (Exception e) {
             mostraErrore("Errore nella rimozione della transazione: " + e.getMessage());
@@ -316,7 +319,7 @@ public class MainController {
 
 
 
-    /*metodo per esportare file excel con le transazioni -> dipendency Apache POI*/
+    /*metodo per esportare file excel con le transazioni -> dependency Apache POI*/
 
     public void esportaExcel() {
         FileChooser fileChooser = new FileChooser();
@@ -359,11 +362,11 @@ public class MainController {
         System.out.println("Aggiorna pagina"); //stampa di debug
 
 
-        entrateTotaliLabel.setText(String.format("Entrate Totali: € %.2f", transactionService.aggiornaTotale("Entrata", yearSelection.getValue())));
-        usciteTotaliLabel.setText(String.format("Uscite Totali: € %.2f", transactionService.aggiornaTotale("Uscita", yearSelection.getValue())));
-        saldoLabel.setText(String.format("Saldo: € %.2f",transactionService.aggiornaTotale("Entrata", yearSelection.getValue()) + transactionService.aggiornaTotale("Uscita", yearSelection.getValue())));
-        chartService.aggiornaGraficoCategorie(pieChartCategorie, transactionService.filtraPerAnno(yearSelection.getValue()), yearSelection.getValue());
-        chartService.aggiornaGraficoMensile(BarChartMensile, transactionService.filtraPerAnno(yearSelection.getValue()), yearSelection.getValue());
+        entrateTotaliLabel.setText(String.format("Entrate Totali: € %.2f", transactionService.aggiornaTotale("Entrata",filteredData)));
+        usciteTotaliLabel.setText(String.format("Uscite Totali: € %.2f", transactionService.aggiornaTotale("Uscita", filteredData)));
+        saldoLabel.setText(String.format("Saldo: € %.2f",transactionService.aggiornaTotale("Entrata", filteredData) + transactionService.aggiornaTotale("Uscita", filteredData )));
+        chartService.aggiornaGraficoCategorie(pieChartCategorie, filteredData);
+        chartService.aggiornaGraficoMensile(BarChartMensile, filteredData);
         aggiornaOpzioniAnni();
     }
 
