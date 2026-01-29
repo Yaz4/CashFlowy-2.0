@@ -1,5 +1,6 @@
 package CashFlowy.controller;
 
+import CashFlowy.service.auth.AuthenticationStrategy;
 import com.zaxxer.hikari.HikariDataSource;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
@@ -15,13 +16,17 @@ public class LoginController {
     @FXML private TextField usernameField;
     @FXML private PasswordField passwordField;
     private HikariDataSource dataSource;
+    private AuthenticationStrategy authenticationStrategy;
 
-    // Senza db
+    // Senza db (kept for UI welcome message behavior)
     private static final String USERNAME = "yaz";
-    private final String PASSWORD = "123";
 
     public void setDataSource(HikariDataSource dataSource) {
         this.dataSource = dataSource;
+    }
+
+    public void setAuthenticationStrategy(AuthenticationStrategy authenticationStrategy) {
+        this.authenticationStrategy = authenticationStrategy;
     }
 
     @FXML
@@ -29,7 +34,8 @@ public class LoginController {
         String username = usernameField.getText();
         String password = passwordField.getText();
 
-        if (USERNAME.equals(username) && PASSWORD.equals(password)) {
+        boolean authenticated = authenticationStrategy != null && authenticationStrategy.authenticate(username, password);
+        if (authenticated) {
             try {
                 FXMLLoader loader = new FXMLLoader(getClass().getResource("/view/main-view.fxml"));
                 Parent root = loader.load();
@@ -42,7 +48,7 @@ public class LoginController {
                 stage.setScene(new Scene(root));
                 stage.setFullScreen(true);
                 stage.show();
-                stage.getIcons().add(new Image(getClass().getResourceAsStream("/images/CashFlowy Logo.png")));
+                stage.getIcons().add(new Image(getClass().getResourceAsStream("/Images/CashFlowy Logo.png")));
 
                 // Chiude la schermata di login
                 ((Stage) usernameField.getScene().getWindow()).close();

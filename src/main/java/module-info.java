@@ -5,6 +5,8 @@ module GFP.DeepseekPrototype {
     requires java.sql;
     requires org.apache.poi.ooxml;
 
+    requires org.apache.poi.poi;
+
     opens CashFlowy.controller to javafx.fxml;
     exports CashFlowy.controller;
 

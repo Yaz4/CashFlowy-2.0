@@ -1,18 +1,31 @@
 package CashFlowy.service;
 
 import CashFlowy.persistence.model.Transaction;
+import CashFlowy.service.calc.CalculationStrategy;
+import CashFlowy.service.calc.DefaultCalculationStrategy;
 import javafx.collections.ObservableList;
-
 
 public class TransactionService {
 
+    private CalculationStrategy calculationStrategy;
+
+    public TransactionService() {
+        this.calculationStrategy = new DefaultCalculationStrategy();
+    }
+
+    public TransactionService(CalculationStrategy calculationStrategy) {
+        this.calculationStrategy = calculationStrategy;
+    }
+
+    public void setCalculationStrategy(CalculationStrategy calculationStrategy) {
+        this.calculationStrategy = calculationStrategy;
+    }
+
     public double aggiornaTotale(String tipo, ObservableList<Transaction> transactions) {
-        return transactions.stream().filter(Transaction -> Transaction.getTipo().equals(tipo)).mapToDouble(Transaction::getImporto).sum();
+        return calculationStrategy.calcolaTotalePerTipo(tipo, transactions);
     }
 
     public double aggiornaPatrimonio(ObservableList<Transaction> transactions) {
-        return transactions.stream().mapToDouble(Transaction::getImporto).sum() - transactions.stream().filter(Transaction -> Transaction.getTipo().equals("Uscita") && Transaction.getCategoria().equals("INVESTIMENTI")).mapToDouble(Transaction::getImporto).sum();
+        return calculationStrategy.calcolaPatrimonio(transactions);
     }
-
-
 }

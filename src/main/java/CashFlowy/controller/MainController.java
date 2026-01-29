@@ -5,6 +5,7 @@ import CashFlowy.persistence.model.Transaction;
 import CashFlowy.persistence.repository.TransactionRepository;
 import CashFlowy.service.ChartService;
 import CashFlowy.service.TransactionService;
+import CashFlowy.service.export.ExportCSV;
 import com.zaxxer.hikari.HikariDataSource;
 import javafx.beans.property.SimpleDoubleProperty;
 import javafx.beans.property.SimpleStringProperty;
@@ -19,18 +20,20 @@ import javafx.scene.control.TextField;
 import javafx.scene.control.DatePicker;
 import javafx.scene.control.cell.TextFieldTableCell;
 import javafx.stage.FileChooser;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.ss.usermodel.Workbook;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import CashFlowy.service.export.ExportExcel;
+import CashFlowy.service.validation.ValidationService;
+import javafx.util.StringConverter;
+import java.text.NumberFormat;
+import java.util.Locale;
 
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
+import java.time.format.DateTimeFormatter;
+import javafx.scene.control.TableCell;
 
 public class MainController {
 
@@ -58,11 +61,17 @@ public class MainController {
     @FXML private PieChart pieChartCategorie;
     @FXML private BarChart BarChartMensile;
     @FXML private Label welcomeBack;
+    @FXML private Button aggiungiButton;
+    @FXML private Button clearSearchButton;
+    @FXML private Label resultsCountLabel;
 
 
     private final ObservableList<Transaction> transactions = FXCollections.observableArrayList();
     private ChartService chartService;
     private TransactionService transactionService;
+    private ExportExcel exportExcel;
+    private ExportCSV exportCSV;
+    private ValidationService validationService;
 
 
 
@@ -70,12 +79,16 @@ public class MainController {
         this.hikariDataSource = hikariDataSource;
         this.transactionRepository = new TransactionRepository(hikariDataSource);
         this.transactionService = new TransactionService();
-        this.chartService=new ChartService();
+        this.chartService = new ChartService();
+        this.exportExcel = new ExportExcel();
+        this.exportCSV = new ExportCSV();
+        this.validationService = new ValidationService();
         Iterable<Transaction> savedTransactions = transactionRepository.findAll();
         for(Transaction savedTransaction: savedTransactions) {
             transactions.add(savedTransaction);
         }
         patrimonioLabel.setText(String.format("€ %.2f", transactionService.aggiornaPatrimonio(transactions)));
+        aggiornaConteggioRisultati();
         aggiornaPagina();
     }
 
@@ -83,6 +96,9 @@ public class MainController {
     public void initialize(){
 
         welcomeBack.setText("Bentornato\n" + LoginController.getUsername());
+
+        // Placeholder per la tabella quando non ci sono dati
+        tabella.setPlaceholder(new Label("Nessuna transazione trovata"));
 
 
 
@@ -141,26 +157,26 @@ public class MainController {
         dataCol.setCellFactory(TextFieldTableCell.forTableColumn());
         dataCol.setOnEditCommit(event -> {
             Transaction transazione = event.getRowValue();
-            try { //nell'aggiornarla controllo che il formato sia giusto
-                LocalDate nuovaData = LocalDate.parse(event.getNewValue());
+            try {
+                LocalDate nuovaData = validationService.parseDate(event.getNewValue());
                 transazione.setData(nuovaData);
                 transactionRepository.save(transazione);
-            } catch (Exception e) { //per prevenire una parsing exception
-                mostraErrore("Formato data non valido. Usa AAAA-MM-GG.");
+            } catch (IllegalArgumentException e) {
+                mostraErrore(e.getMessage());
             }
         });
 
         /*COLONNA IMPORTO*/
         importoCol.setCellValueFactory(cell -> new SimpleDoubleProperty(cell.getValue().getImporto()).asObject());
         importoCol.setOnEditCommit(event -> {
-
             try {
+                validationService.validateAmount(event.getNewValue().toString());
                 Transaction selectedTransaction = event.getRowValue();
                 double newValue = Double.parseDouble(event.getNewValue().toString());
                 selectedTransaction.setImporto(newValue);
                 transactionRepository.save(selectedTransaction);
-            } catch (NumberFormatException e) {
-                mostraErrore("Importo non valido. Inserire un valore numerico");
+            } catch (IllegalArgumentException e) {
+                mostraErrore(e.getMessage());
             }
         });
 
@@ -172,11 +188,34 @@ public class MainController {
         filteredData = new FilteredList<>(transactions, t -> true); //predicato presente in aggiornaFiltroGlobale()
         searchField.textProperty().addListener((observable, oldValue, newValue) -> {
             aggiornaFiltroGlobale(); // deve rispettare il filtro globale
-            //transactionService.setTransactions(filteredData);
-
         });
         tabella.setItems(filteredData);
         tabella.setEditable(true);
+
+        // Button clear search handler visibility
+        if (clearSearchButton != null) {
+            clearSearchButton.disableProperty().bind(searchField.textProperty().isEmpty());
+        }
+
+        // Disabilita il pulsante Aggiungi finché i campi non sono validi
+        if (aggiungiButton != null) {
+            aggiungiButton.disableProperty().bind(importoField.textProperty().isEmpty()
+                    .or(dataField.valueProperty().isNull())
+                    .or(tipoChoiceBox.valueProperty().isNull())
+                    .or(tipoChoiceBox.valueProperty().isEqualTo("Uscita").and(
+                            categoriaChoiceBox.valueProperty().isNull()
+                                    .or(categoriaChoiceBox.valueProperty().isEqualTo("Categoria"))
+                    )));
+        }
+
+        // Formattazione valuta per la colonna importo (solo visualizzazione)
+        NumberFormat currency = NumberFormat.getCurrencyInstance(Locale.ITALY);
+        importoCol.setCellFactory(col -> new TableCell<>() {
+            @Override protected void updateItem(Double value, boolean empty) {
+                super.updateItem(value, empty);
+                setText(empty || value == null ? null : currency.format(value));
+            }
+        });
 
 
 
@@ -193,14 +232,14 @@ public class MainController {
     }
 
     private void aggiornaFiltroGlobale() {
-        String searchText = searchField.getText().toLowerCase();
+        String searchText = searchField.getText() == null ? "" : searchField.getText().toLowerCase();
         String annoSelezionato = yearSelection.getValue();
 
         filteredData.setPredicate(t -> {
             boolean matchAnno = annoSelezionato == null || annoSelezionato.equals("Storico")
                     || String.valueOf(t.getData().getYear()).equals(annoSelezionato);
 
-            boolean matchRicerca = searchText == null || searchText.isEmpty()
+            boolean matchRicerca = searchText.isEmpty()
                     || (t.getDescrizione() != null && t.getDescrizione().toLowerCase().contains(searchText))
                     || (t.getCategoria() != null && t.getCategoria().toLowerCase().contains(searchText))
                     || (t.getTipo() != null && t.getTipo().toLowerCase().contains(searchText))
@@ -208,6 +247,7 @@ public class MainController {
 
             return matchAnno && matchRicerca; //devo assicurarmi che sia l'anno, sia il testo cercato vengano soddisfatti
         });
+        aggiornaConteggioRisultati();
     }
 
     /*-----------------------------------
@@ -222,9 +262,10 @@ public class MainController {
         double importo;
 
         try {
+            validationService.validateAmount(importoField.getText());
             importo = Double.parseDouble(importoField.getText());
-        } catch (NumberFormatException e) {
-            mostraErrore("Importo non valido. Inserire un valore numerico");
+        } catch (IllegalArgumentException e) {
+            mostraErrore(e.getMessage());
             return;
         }
 
@@ -271,6 +312,21 @@ public class MainController {
             aggiornaPagina();
         } catch (Exception e) {
             mostraErrore("Errore nella rimozione della transazione: " + e.getMessage());
+        }
+    }
+
+    @FXML
+    private void clearSearch() {
+        if (searchField != null) {
+            searchField.clear();
+        }
+    }
+
+    private void aggiornaConteggioRisultati() {
+        if (resultsCountLabel != null && filteredData != null) {
+            int n = filteredData.size();
+            int m = transactions.size();
+            resultsCountLabel.setText("Risultati: " + n + "/" + m);
         }
     }
 
@@ -328,46 +384,49 @@ public class MainController {
         File file = fileChooser.showSaveDialog(null);
 
         if (file != null) {
-            try (Workbook workbook = new XSSFWorkbook()) {
-                Sheet sheet = workbook.createSheet("Transazioni");
-                Row header = sheet.createRow(0);
-
-                // intestazioni
-                for (int i = 0; i < tabella.getColumns().size(); i++) {
-                    header.createCell(i).setCellValue(tabella.getColumns().get(i).getText());
-                }
-
-                // righe
-                for (int i = 0; i < tabella.getItems().size(); i++) {
-                    Transaction t = tabella.getItems().get(i);
-                    Row row = sheet.createRow(i + 1);
-                    row.createCell(0).setCellValue(t.getCategoria());
-                    row.createCell(1).setCellValue(t.getDescrizione());
-                    row.createCell(2).setCellValue(t.getTipo());
-                    row.createCell(3).setCellValue(t.getData().toString());
-                    row.createCell(4).setCellValue(t.getImporto());
-                }
-
-                try (FileOutputStream out = new FileOutputStream(file)) {
-                    workbook.write(out);
-                }
-
+            try {
+                exportExcel.export(file, new java.util.ArrayList<>(tabella.getItems()));
             } catch (IOException e) {
-                e.printStackTrace();
+                mostraErrore("Errore durante l'esportazione: " + e.getMessage());
             }
         }
+    }
+
+    public void esportaCSV(){
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Salva come CSV");
+        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("CSV files (*.csv)", "*.csv"));
+        File file = fileChooser.showSaveDialog(null);
+
+        if (file != null) {
+            try {
+                exportCSV.export(file, new java.util.ArrayList<>(tabella.getItems()));
+            } catch (IOException e) {
+                mostraErrore("Errore durante l'esportazione: " + e.getMessage());
+            }
+        }
+
+
+
     }
 
     public void aggiornaPagina(){
         System.out.println("Aggiorna pagina"); //stampa di debug
 
-
         entrateTotaliLabel.setText(String.format("Entrate Totali: € %.2f", transactionService.aggiornaTotale("Entrata",filteredData)));
         usciteTotaliLabel.setText(String.format("Uscite Totali: € %.2f", transactionService.aggiornaTotale("Uscita", filteredData)));
         saldoLabel.setText(String.format("Saldo: € %.2f",transactionService.aggiornaTotale("Entrata", filteredData) + transactionService.aggiornaTotale("Uscita", filteredData )));
-        chartService.aggiornaGraficoCategorie(pieChartCategorie, filteredData);
-        chartService.aggiornaGraficoMensile(BarChartMensile, filteredData);
+
+        // Aggiorna grafici solo se ci sono dati filtrati
+        if (filteredData != null && !filteredData.isEmpty()) {
+            chartService.aggiornaGraficoCategorie(pieChartCategorie, filteredData);
+            chartService.aggiornaGraficoMensile(BarChartMensile, filteredData);
+        } else {
+            pieChartCategorie.getData().clear();
+            BarChartMensile.getData().clear();
+        }
         aggiornaOpzioniAnni();
+        aggiornaConteggioRisultati();
     }
 
 

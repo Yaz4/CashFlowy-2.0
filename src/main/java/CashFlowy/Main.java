@@ -1,7 +1,9 @@
 package CashFlowy;
 
 import CashFlowy.controller.LoginController;
-import com.zaxxer.hikari.HikariConfig;
+import CashFlowy.service.DataSourceProvider;
+import CashFlowy.service.auth.AuthenticationStrategy;
+import CashFlowy.service.auth.HardcodedAuthenticationStrategy;
 import com.zaxxer.hikari.HikariDataSource;
 import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
@@ -13,17 +15,13 @@ import java.io.IOException;
 
 public class Main extends Application {
 
-    private static final String JDBC_Driver = "org.postgresql.Driver";
-    private static final String JDBC_URL = "jdbc:postgresql://localhost:5432/jdbc_schema?user=user&password=secret&ssl=false";
-
-
     public static void main(String[] args) {
         launch(args);
     }
 
     @Override
     public void start(Stage primaryStage) throws IOException {
-        HikariDataSource hikariDataSource = initDataSource(JDBC_Driver, JDBC_URL);
+        HikariDataSource hikariDataSource = DataSourceProvider.getInstance().getDataSource();
         FXMLLoader loader = new FXMLLoader(getClass().getResource("/view/login.fxml"));
         Parent root = loader.load();
         primaryStage.setTitle("Login - CashFlowy");
@@ -32,17 +30,12 @@ public class Main extends Application {
 
         LoginController loginController = loader.getController();
         loginController.setDataSource(hikariDataSource);
+        // Inject Strategy for authentication (Strategy Pattern)
+        AuthenticationStrategy authStrategy = new HardcodedAuthenticationStrategy("yaz", "123");
+        loginController.setAuthenticationStrategy(authStrategy);
+
         root.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
 
     }
-    private HikariDataSource initDataSource(String JDBC_Driver, String JDBC_URL) {
-        HikariConfig config = new HikariConfig();
-        config.setDriverClassName(JDBC_Driver);
-        config.setJdbcUrl(JDBC_URL);
-        config.setLeakDetectionThreshold(2000);
-        return new HikariDataSource(config);
-    }
-
-
 }
 

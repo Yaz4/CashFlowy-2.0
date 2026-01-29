@@ -39,25 +39,19 @@ public class Transaction {
 
 
     //setters
-
     public void setId(Long id) {
         this.id = id;
     }
-
     public void setCategoria(String categoria) {   this.categoria = categoria; }
-
     public void setData(LocalDate data) {
         this.data = data;
     }
-
     public void setDescrizione(String descrizione) {
         this.descrizione = descrizione;
     }
-
     public void setImporto(double importo) {
         this.importo = importo;
     }
-
     public void setTipo(String tipo) {
         this.tipo = tipo;
     }
