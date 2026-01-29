@@ -1,0 +1,46 @@
+### Analisi completa e miglioramenti di Ingegneria del Software
+
+Di seguito l’analisi della codebase e gli interventi effettuati per mantenere invariate le funzionalità applicative adottando specifici Design Patterns, senza modificare l’UI.
+
+#### Punti critici individuati
+- Accoppiamento forte alla configurazione del database in `Main.java` (creazione diretta di `HikariDataSource`).
+- Autenticazione hardcoded dentro `LoginController` (logica di dominio mescolata alla logica di UI; scarsa testabilità e estendibilità).
+- Calcoli di business in `TransactionService` implementati con logica inline non sostituibile (nessuna strategia per variare i calcoli).
+- Controller molto “carichi” (molte responsabilità: I/O DB, validazioni, business, aggiornamento UI). Non abbiamo spostato logica per non toccare l’UI/UX, ma abbiamo introdotto astrazioni per migliorare la struttura senza alterare il comportamento.
+
+#### Pattern applicati (senza cambiare l’UI)
+1) Singleton + Simple Factory: `DataSourceProvider`
+- Problema: la creazione e configurazione dell’`HikariDataSource` era duplicata ed accoppiata a `Main`.
+- Soluzione: introdotto `DataSourceProvider` che centralizza la configurazione e fornisce un’unica istanza di `HikariDataSource`.
+- Benefici: riduzione dell’accoppiamento, luogo unico per la configurazione, più testabile e pronta per eventuale esternalizzazione (es. file di config).
+
+2) Strategy (Autenticazione): `AuthenticationStrategy` + `HardcodedAuthenticationStrategy`
+- Problema: credenziali hardcoded in `LoginController` e logica di autenticazione dentro il controller.
+- Soluzione: `LoginController` ora dipende da un’interfaccia `AuthenticationStrategy` e riceve l’implementazione concreta `HardcodedAuthenticationStrategy` da `Main` (Dependency Injection manuale). Il comportamento resta identico (utente “yaz”, password “123”).
+- Benefici: possibilità di sostituire facilmente la strategia (es. `DbAuthenticationStrategy`, `LdapAuthenticationStrategy`) senza toccare l’UI o il controller.
+
+3) Strategy (Calcoli finanziari): `CalculationStrategy` + `DefaultCalculationStrategy` usata da `TransactionService`
+- Problema: logica di calcolo inline in `TransactionService`, rigida.
+- Soluzione: `TransactionService` delega i calcoli alla strategia, preservando la stessa semantica (calcolo totali per tipo e patrimonio con esclusione investimenti uscita).
+- Benefici: possibilità di cambiare le regole di calcolo (es. tassazioni, arrotondamenti, valute, promozioni) senza impattare il resto dell’applicazione.
+
+#### File modificati/aggiunti
+- Modificati:
+  - `src/main/java/CashFlowy/Main.java`: usa `DataSourceProvider` e inietta `AuthenticationStrategy` in `LoginController`.
+  - `src/main/java/CashFlowy/controller/LoginController.java`: sostituita la logica di autenticazione diretta con una `AuthenticationStrategy` iniettata. Il metodo `getUsername()` resta per preservare il testo di benvenuto.
+  - `src/main/java/CashFlowy/service/TransactionService.java`: delega a `CalculationStrategy` (default: `DefaultCalculationStrategy`).
+- Aggiunti:
+  - `src/main/java/CashFlowy/service/DataSourceProvider.java` (Singleton + Factory per `HikariDataSource`).
+  - `src/main/java/CashFlowy/service/auth/AuthenticationStrategy.java` (interfaccia Strategy).
+  - `src/main/java/CashFlowy/service/auth/HardcodedAuthenticationStrategy.java` (implementazione corrente).
+  - `src/main/java/CashFlowy/service/calc/CalculationStrategy.java` (interfaccia Strategy).
+  - `src/main/java/CashFlowy/service/calc/DefaultCalculationStrategy.java` (implementazione corrente).
+
+#### Verifica
+- Build eseguita con successo dopo le modifiche (compilazione OK). Nessuna modifica alle FXML/CSS o alla UI è stata effettuata; le schermate, i testi e i comportamenti rimangono invariati.
+
+#### Come estendere in seguito (senza cambiare l’UI)
+- Autenticazione: aggiungere `DbAuthenticationStrategy` e leggere utenti dal DB.
+- Configurazione: esternalizzare le proprietà JDBC in file `.properties` o variabili d’ambiente, consumate dal `DataSourceProvider`.
+- Calcoli: nuove strategie per regole contabili differenti; permettere la selezione runtime della strategia.
+- Controller/Service: considerare Command per operazioni di modifica (undo/redo), e un Mapper/DTO per isolare l’UI dal modello di persistenza.

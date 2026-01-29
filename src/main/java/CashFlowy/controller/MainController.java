@@ -53,7 +53,7 @@ public class MainController {
     @FXML private TableColumn<Transaction, Double> importoCol;
     HikariDataSource hikariDataSource;
     private FilteredList<Transaction> filteredData;
-    private TransactionRepository transactionRepository;
+    // RIMOSSO: private TransactionRepository transactionRepository;
     @FXML private Label patrimonioLabel;
     @FXML private Label saldoLabel;
     @FXML private Label entrateTotaliLabel;
@@ -77,13 +77,19 @@ public class MainController {
 
     public void initDataSource(HikariDataSource hikariDataSource) {
         this.hikariDataSource = hikariDataSource;
-        this.transactionRepository = new TransactionRepository(hikariDataSource);
-        this.transactionService = new TransactionService();
+        // Creiamo il repository localmente solo per passarlo al service
+        TransactionRepository repo = new TransactionRepository(hikariDataSource);
+        
+        // Inietto il repository nel service
+        this.transactionService = new TransactionService(repo);
+        
         this.chartService = new ChartService();
         this.exportExcel = new ExportExcel();
         this.exportCSV = new ExportCSV();
         this.validationService = new ValidationService();
-        Iterable<Transaction> savedTransactions = transactionRepository.findAll();
+        
+        // Uso il service per recuperare i dati
+        Iterable<Transaction> savedTransactions = transactionService.findAll();
         for(Transaction savedTransaction: savedTransactions) {
             transactions.add(savedTransaction);
         }
@@ -132,7 +138,8 @@ public class MainController {
         categoriaCol.setOnEditCommit(event -> { //possibilità di modificare i valori direttamente nella tabella
             Transaction selectedTransaction = event.getRowValue();
             selectedTransaction.setCategoria(event.getNewValue());
-            transactionRepository.save(selectedTransaction);
+            // USATO SERVICE INVECE DI REPO
+            transactionService.save(selectedTransaction);
         });
 
         /*COLONNA DESCRIZIONE*/
@@ -141,7 +148,8 @@ public class MainController {
         descrizioneCol.setOnEditCommit(event -> {
             Transaction selectedTransaction = event.getRowValue();
             selectedTransaction.setDescrizione(event.getNewValue());
-            transactionRepository.save(selectedTransaction);
+            // USATO SERVICE INVECE DI REPO
+            transactionService.save(selectedTransaction);
         });
 
         /*COLONNA TIPO*/
@@ -149,7 +157,8 @@ public class MainController {
         tipoCol.setOnEditCommit(event -> {
             Transaction selectedTransaction = event.getRowValue();
             selectedTransaction.setTipo(event.getNewValue());
-            transactionRepository.save(selectedTransaction);
+            // USATO SERVICE INVECE DI REPO
+            transactionService.save(selectedTransaction);
         });
 
         /*COLONNA DATA*/
@@ -160,7 +169,8 @@ public class MainController {
             try {
                 LocalDate nuovaData = validationService.parseDate(event.getNewValue());
                 transazione.setData(nuovaData);
-                transactionRepository.save(transazione);
+                // USATO SERVICE INVECE DI REPO
+                transactionService.save(transazione);
             } catch (IllegalArgumentException e) {
                 mostraErrore(e.getMessage());
             }
@@ -174,7 +184,8 @@ public class MainController {
                 Transaction selectedTransaction = event.getRowValue();
                 double newValue = Double.parseDouble(event.getNewValue().toString());
                 selectedTransaction.setImporto(newValue);
-                transactionRepository.save(selectedTransaction);
+                // USATO SERVICE INVECE DI REPO
+                transactionService.save(selectedTransaction);
             } catch (IllegalArgumentException e) {
                 mostraErrore(e.getMessage());
             }
@@ -279,8 +290,8 @@ public class MainController {
         Transaction transazione = new Transaction(categoria,descrizione, importo, data, tipo);
 
         try {
-
-            transactionRepository.save(transazione);
+            // USATO SERVICE INVECE DI REPO
+            transactionService.save(transazione);
             System.out.println("Transazione salvata con ID: " + transazione.getId()); //stampa di debug
 
 
@@ -306,7 +317,8 @@ public class MainController {
         }
 
         try {
-            transactionRepository.deleteById(selezionata.getId());
+            // USATO SERVICE INVECE DI REPO
+            transactionService.deleteById(selezionata.getId());
             transactions.remove(selezionata);
             patrimonioLabel.setText(String.format("€ %.2f", transactionService.aggiornaPatrimonio(transactions)));
             aggiornaPagina();
