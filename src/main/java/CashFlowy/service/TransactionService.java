@@ -2,48 +2,48 @@ package CashFlowy.service;
 
 import CashFlowy.persistence.model.Transaction;
 import CashFlowy.persistence.repository.TransactionRepository;
-import CashFlowy.service.calc.CalculationStrategy;
-import CashFlowy.service.calc.DefaultCalculationStrategy;
+import CashFlowy.service.calc.CalculationService;
+import CashFlowy.service.calc.DefaultCalculationService;
 import javafx.collections.ObservableList;
 
 import java.util.Optional;
 
 public class TransactionService {
 
-    private CalculationStrategy calculationStrategy;
+    private CalculationService calculationService;
     private TransactionRepository transactionRepository;
 
     // Costruttore vuoto per compatibilità (ma sconsigliato se non si setta il repository dopo)
     public TransactionService() {
-        this.calculationStrategy = new DefaultCalculationStrategy();
+        this.calculationService = new DefaultCalculationService();
     }
 
     // Costruttore con Repository (Dependency Injection manuale)
     public TransactionService(TransactionRepository transactionRepository) {
         this.transactionRepository = transactionRepository;
-        this.calculationStrategy = new DefaultCalculationStrategy();
+        this.calculationService = new DefaultCalculationService();
     }
 
-    public TransactionService(TransactionRepository transactionRepository, CalculationStrategy calculationStrategy) {
+    public TransactionService(TransactionRepository transactionRepository, CalculationService calculationService) {
         this.transactionRepository = transactionRepository;
-        this.calculationStrategy = calculationStrategy;
+        this.calculationService = calculationService;
     }
 
     public void setTransactionRepository(TransactionRepository transactionRepository) {
         this.transactionRepository = transactionRepository;
     }
 
-    public void setCalculationStrategy(CalculationStrategy calculationStrategy) {
-        this.calculationStrategy = calculationStrategy;
+    public void setCalculationStrategy(CalculationService calculationService) {
+        this.calculationService = calculationService;
     }
 
     // Metodi di calcolo (esistenti)
     public double aggiornaTotale(String tipo, ObservableList<Transaction> transactions) {
-        return calculationStrategy.calcolaTotalePerTipo(tipo, transactions);
+        return calculationService.calcolaTotalePerTipo(tipo, transactions);
     }
 
     public double aggiornaPatrimonio(ObservableList<Transaction> transactions) {
-        return calculationStrategy.calcolaPatrimonio(transactions);
+        return calculationService.calcolaPatrimonio(transactions);
     }
 
     // --- Metodi CRUD che delegano al Repository ---

@@ -6,6 +6,7 @@ import CashFlowy.persistence.repository.TransactionRepository;
 import CashFlowy.service.ChartService;
 import CashFlowy.service.TransactionService;
 import CashFlowy.service.export.ExportCSV;
+import CashFlowy.service.validation.DefaultValidationService;
 import com.zaxxer.hikari.HikariDataSource;
 import javafx.beans.property.SimpleDoubleProperty;
 import javafx.beans.property.SimpleStringProperty;
@@ -86,7 +87,7 @@ public class MainController {
         this.chartService = new ChartService();
         this.exportExcel = new ExportExcel();
         this.exportCSV = new ExportCSV();
-        this.validationService = new ValidationService();
+        this.validationService = new DefaultValidationService();
         
         // Uso il service per recuperare i dati
         Iterable<Transaction> savedTransactions = transactionService.findAll();

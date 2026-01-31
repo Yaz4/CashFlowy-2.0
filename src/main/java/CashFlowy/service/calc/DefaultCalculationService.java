@@ -3,7 +3,7 @@ package CashFlowy.service.calc;
 import CashFlowy.persistence.model.Transaction;
 import javafx.collections.ObservableList;
 
-public class DefaultCalculationStrategy implements CalculationStrategy {
+public class DefaultCalculationService implements CalculationService {
     @Override
     public double calcolaTotalePerTipo(String tipo, ObservableList<Transaction> transactions) {
         return transactions.stream()
