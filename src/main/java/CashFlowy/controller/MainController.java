@@ -3,8 +3,10 @@ package CashFlowy.controller;
 
 import CashFlowy.persistence.model.Transaction;
 import CashFlowy.persistence.repository.TransactionRepository;
-import CashFlowy.service.ChartService;
+import CashFlowy.service.charts.ChartService;
 import CashFlowy.service.TransactionService;
+import CashFlowy.service.charts.MonthlyChartService;
+import CashFlowy.service.charts.PieChartService;
 import CashFlowy.service.export.ExportCSV;
 import CashFlowy.service.validation.DefaultValidationService;
 import com.zaxxer.hikari.HikariDataSource;
@@ -23,7 +25,7 @@ import javafx.scene.control.cell.TextFieldTableCell;
 import javafx.stage.FileChooser;
 import CashFlowy.service.export.ExportExcel;
 import CashFlowy.service.validation.ValidationService;
-import javafx.util.StringConverter;
+
 import java.text.NumberFormat;
 import java.util.Locale;
 
@@ -32,8 +34,7 @@ import java.io.IOException;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
-import java.time.format.DateTimeFormatter;
+
 import javafx.scene.control.TableCell;
 
 public class MainController {
@@ -68,7 +69,8 @@ public class MainController {
 
 
     private final ObservableList<Transaction> transactions = FXCollections.observableArrayList();
-    private ChartService chartService;
+    private ChartService monthlyChartService;
+    private ChartService pieChartService;
     private TransactionService transactionService;
     private ExportExcel exportExcel;
     private ExportCSV exportCSV;
@@ -84,7 +86,8 @@ public class MainController {
         // Inietto il repository nel service
         this.transactionService = new TransactionService(repo);
         
-        this.chartService = new ChartService();
+        this.monthlyChartService = new MonthlyChartService();
+        this.pieChartService = new PieChartService();
         this.exportExcel = new ExportExcel();
         this.exportCSV = new ExportCSV();
         this.validationService = new DefaultValidationService();
@@ -432,8 +435,8 @@ public class MainController {
 
         // Aggiorna grafici solo se ci sono dati filtrati
         if (filteredData != null && !filteredData.isEmpty()) {
-            chartService.aggiornaGraficoCategorie(pieChartCategorie, filteredData);
-            chartService.aggiornaGraficoMensile(BarChartMensile, filteredData);
+            pieChartService.aggiornaGrafico(pieChartCategorie, filteredData);
+            monthlyChartService.aggiornaGrafico(BarChartMensile, filteredData);
         } else {
             pieChartCategorie.getData().clear();
             BarChartMensile.getData().clear();
