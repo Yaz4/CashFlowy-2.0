@@ -4,14 +4,19 @@ import CashFlowy.persistence.model.Transaction;
 import CashFlowy.persistence.repository.TransactionRepository;
 import CashFlowy.service.calc.CalculationService;
 import CashFlowy.service.calc.DefaultCalculationService;
+import CashFlowy.service.event.TransactionListener;
 import javafx.collections.ObservableList;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 public class TransactionService {
 
     private CalculationService calculationService;
     private TransactionRepository transactionRepository;
+
+    private List<TransactionListener> listeners = new ArrayList<>();
 
     // Costruttore vuoto per compatibilità (ma sconsigliato se non si setta il repository dopo)
     public TransactionService() {
@@ -29,6 +34,19 @@ public class TransactionService {
         this.calculationService = calculationService;
     }
 
+    public void addListener(TransactionListener listener) {
+        listeners.add(listener);
+    }
+
+    public void removeListener(TransactionListener listener) {
+        listeners.remove(listener);
+    }
+
+    private void notifyListeners() {
+        for (TransactionListener listener : listeners) {
+            listener.onDataChanged();
+        }
+    }
     public void setTransactionRepository(TransactionRepository transactionRepository) {
         this.transactionRepository = transactionRepository;
     }
@@ -59,7 +77,8 @@ public class TransactionService {
         if (transactionRepository == null) {
             throw new IllegalStateException("TransactionRepository non inizializzato nel Service");
         }
-        // Qui potremmo aggiungere logica di validazione extra prima di salvare
+        notifyListeners();
+
         return transactionRepository.save(transaction);
     }
 
@@ -68,6 +87,7 @@ public class TransactionService {
             throw new IllegalStateException("TransactionRepository non inizializzato nel Service");
         }
         transactionRepository.deleteById(id);
+        notifyListeners();
     }
     
     public Optional<Transaction> findById(Long id) {

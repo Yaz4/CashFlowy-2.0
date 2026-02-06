@@ -3,10 +3,12 @@ package CashFlowy.controller;
 
 import CashFlowy.persistence.model.Transaction;
 import CashFlowy.persistence.repository.TransactionRepository;
-import CashFlowy.service.charts.ChartService;
+import CashFlowy.service.analytics.AnalyticsService;
+import CashFlowy.service.analytics.DefaultAnalyticsService;
 import CashFlowy.service.TransactionService;
 import CashFlowy.service.charts.MonthlyChartService;
 import CashFlowy.service.charts.PieChartService;
+import CashFlowy.service.event.TransactionListener;
 import CashFlowy.service.export.ExportCSV;
 import CashFlowy.service.validation.DefaultValidationService;
 import com.zaxxer.hikari.HikariDataSource;
@@ -69,8 +71,11 @@ public class MainController {
 
 
     private final ObservableList<Transaction> transactions = FXCollections.observableArrayList();
-    private ChartService monthlyChartService;
-    private ChartService pieChartService;
+
+    //private ChartService monthlyChartService;
+    //private ChartService pieChartService;
+    private AnalyticsService analyticsService;
+
     private TransactionService transactionService;
     private ExportExcel exportExcel;
     private ExportCSV exportCSV;
@@ -85,13 +90,23 @@ public class MainController {
         
         // Inietto il repository nel service
         this.transactionService = new TransactionService(repo);
-        
-        this.monthlyChartService = new MonthlyChartService();
-        this.pieChartService = new PieChartService();
+        this.analyticsService = new DefaultAnalyticsService();
+        //this.monthlyChartService = new MonthlyChartService();
+        //this.pieChartService = new PieChartService();
+
+        this.analyticsService = new DefaultAnalyticsService();
         this.exportExcel = new ExportExcel();
         this.exportCSV = new ExportCSV();
         this.validationService = new DefaultValidationService();
-        
+
+        this.transactionService.addListener(new TransactionListener() {
+            @Override
+            public void onDataChanged() {
+                ricaricaDati();
+                aggiornaPagina();
+            }
+        });
+
         // Uso il service per recuperare i dati
         Iterable<Transaction> savedTransactions = transactionService.findAll();
         for(Transaction savedTransaction: savedTransactions) {
@@ -299,16 +314,25 @@ public class MainController {
             System.out.println("Transazione salvata con ID: " + transazione.getId()); //stampa di debug
 
 
-            transactions.add(transazione);
+            //transactions.add(transazione);
 
+            ricaricaDati();
             descrizioneField.clear();
             importoField.clear();
-            patrimonioLabel.setText(String.format("€ %.2f", transactionService.aggiornaPatrimonio(transactions)));
-            aggiornaPagina();
+            //patrimonioLabel.setText(String.format("€ %.2f", transactionService.aggiornaPatrimonio(transactions)));
+            //aggiornaPagina();
         } catch (Exception e) {
             mostraErrore("Errore durante il salvataggio: " + e.getMessage());
         }
 
+
+    }
+    private void ricaricaDati() {
+        transactions.clear();
+        Iterable<Transaction> nuoveTransazioni = transactionService.findAll();
+        for (Transaction t : nuoveTransazioni) {
+            transactions.add(t);
+        }
 
     }
 
@@ -425,18 +449,77 @@ public class MainController {
 
 
     }
+    /* --- NUOVI METODI PER GESTIRE I GRAFICI NEL CONTROLLER --- */
+
+    private void aggiornaGraficoTorta() {
+        // 1. Chiediamo i numeri al Service (Logica pura)
+        Map<String, Double> dati = analyticsService.getSpesePerCategoria(filteredData);
+
+        // 2. Prepariamo la lista per JavaFX (Grafica)
+        ObservableList<PieChart.Data> datiGrafico = FXCollections.observableArrayList();
+        double totaleUscite = 0;
+
+        // Convertiamo la mappa in dati per il grafico
+        for (Map.Entry<String, Double> entry : dati.entrySet()) {
+            String categoria = entry.getKey();
+            Double importo = entry.getValue();
+            datiGrafico.add(new PieChart.Data(categoria, importo));
+            totaleUscite += importo;
+        }
+
+        // 3. Aggiungiamo le percentuali alle etichette (Opzionale, ma carino)
+        for (PieChart.Data d : datiGrafico) {
+            double percentuale = (d.getPieValue() / totaleUscite) * 100;
+            d.setName(String.format("%s (%.1f%%)", d.getName(), percentuale));
+        }
+
+        // 4. Aggiorniamo il componente a schermo
+        pieChartCategorie.setData(datiGrafico);
+    }
+
+    private void aggiornaGraficoBarre() {
+        // 1. Chiediamo i numeri al Service
+        Map<Integer, Double> entrate = analyticsService.getEntrateMensili(filteredData);
+        Map<Integer, Double> uscite = analyticsService.getUsciteMensili(filteredData);
+
+        String[] nomiMesi = {"Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"};
+
+        // 2. Creiamo le due serie (Entrate e Uscite)
+        XYChart.Series<String, Number> serieEntrate = new XYChart.Series<>();
+        serieEntrate.setName("Entrate");
+
+        XYChart.Series<String, Number> serieUscite = new XYChart.Series<>();
+        serieUscite.setName("Uscite");
+
+        // 3. Riempiamo le serie ciclando i 12 mesi
+        for (int i = 1; i <= 12; i++) {
+            String nomeMese = nomiMesi[i-1];
+            // Nota: entrate.get(i) restituisce il valore o 0.0 (gestito dal service)
+            serieEntrate.getData().add(new XYChart.Data<>(nomeMese, entrate.get(i)));
+            serieUscite.getData().add(new XYChart.Data<>(nomeMese, uscite.get(i)));
+        }
+
+        // 4. Puliamo e aggiorniamo il grafico a barre
+        BarChartMensile.getData().clear();
+        BarChartMensile.getData().addAll(serieEntrate, serieUscite);
+    }
 
     public void aggiornaPagina(){
         System.out.println("Aggiorna pagina"); //stampa di debug
+        double patrimonio = transactionService.aggiornaPatrimonio(transactions);
+        patrimonioLabel.setText(String.format("€ %.2f", patrimonio));
 
-        entrateTotaliLabel.setText(String.format("Entrate Totali: € %.2f", transactionService.aggiornaTotale("Entrata",filteredData)));
-        usciteTotaliLabel.setText(String.format("Uscite Totali: € %.2f", transactionService.aggiornaTotale("Uscita", filteredData)));
+        double entrate = transactionService.aggiornaTotale("Entrata", filteredData);
+        double uscite = transactionService.aggiornaTotale("Uscita", filteredData);
+
+        entrateTotaliLabel.setText(String.format("Entrate Totali: € %.2f", entrate ));
+        usciteTotaliLabel.setText(String.format("Uscite Totali: € %.2f", uscite));
         saldoLabel.setText(String.format("Saldo: € %.2f",transactionService.aggiornaTotale("Entrata", filteredData) + transactionService.aggiornaTotale("Uscita", filteredData )));
 
         // Aggiorna grafici solo se ci sono dati filtrati
         if (filteredData != null && !filteredData.isEmpty()) {
-            pieChartService.aggiornaGrafico(pieChartCategorie, filteredData);
-            monthlyChartService.aggiornaGrafico(BarChartMensile, filteredData);
+            aggiornaGraficoTorta();
+            aggiornaGraficoBarre();
         } else {
             pieChartCategorie.getData().clear();
             BarChartMensile.getData().clear();

@@ -28,6 +28,7 @@ public class Main extends Application {
         primaryStage.setScene(new Scene(root));
         primaryStage.show();
 
+
         LoginController loginController = loader.getController();
         loginController.setDataSource(hikariDataSource);
         // Inject Strategy for authentication (Strategy Pattern)
